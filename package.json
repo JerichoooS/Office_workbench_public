@@ -1,0 +1,8 @@
+{
+  "name": "personal-workbench",
+  "version": "1.0.0",
+  "description": "个人云端工作台",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

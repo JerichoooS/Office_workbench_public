@@ -1,0 +1,7 @@
+.DS_Store
+node_modules/
+*.log
+server/.dev-keys.json
+server/server-token.txt
+db/migrations/003_server_token.sql
+public/config.js

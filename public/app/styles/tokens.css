@@ -1,0 +1,59 @@
+/* =====================================================================
+ * 设计令牌（唯一的颜色/字体/圆角来源）
+ * 规则：组件样式只能用这里的变量，不写字面颜色值。
+ * 新主题：复制一组变量，挂在 :root[data-skin="xxx"] 下即可（见 docs/开发规范.md §5）。
+ * ===================================================================== */
+:root {
+  /* 颜色 · 亚麻暖灰（默认主题 linen） */
+  --bg: #f1efeb;
+  --surface: #fbfaf8;
+  --sunken: #e8e5df;
+  --line: #dcd7cf;
+  --ink: #2b2925;
+  --ink-2: #67625a;
+  --ink-3: #9a948a;
+  --accent: #557268;
+  --accent-soft: #e0e7e2;
+  --accent-ink: #f7f8f5;
+  --ok: #73844f;   --ok-soft: #e7eadb;
+  --warn: #a5793a; --warn-soft: #f1e7d6;
+  --bad: #a95a4c;  --bad-soft: #f2e1dc;
+  --wait: #7a6a8c; --wait-soft: #e9e3ec;
+  --scrim: rgba(30, 28, 25, .28);
+  --shadow: 0 1px 2px rgba(43, 41, 37, .06), 0 8px 24px rgba(43, 41, 37, .08);
+
+  /* 字体：只用系统字体（Google Fonts / jsDelivr 在国内不可靠，见 docs/开发规范.md） */
+  --f-ui: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  --f-num: ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* 尺寸 */
+  --r: 10px;
+  --r-sm: 8px;
+  --side-w: 216px;
+  --drawer-w: 420px;
+  --tabbar-h: 62px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1b1a18; --surface: #23221f; --sunken: #2c2a27; --line: #3a3733;
+    --ink: #ebe7e1; --ink-2: #b2aca3; --ink-3: #847e75;
+    --accent: #9dbbaf; --accent-soft: #2f3a35; --accent-ink: #171a18;
+    --ok: #b2c08c; --ok-soft: #313424; --warn: #d4ab6c; --warn-soft: #3b3225;
+    --bad: #d9958a; --bad-soft: #3f2a26; --wait: #b8a6cc; --wait-soft: #332d38;
+    --scrim: rgba(0, 0, 0, .45);
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .35);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1b1a18; --surface: #23221f; --sunken: #2c2a27; --line: #3a3733;
+  --ink: #ebe7e1; --ink-2: #b2aca3; --ink-3: #847e75;
+  --accent: #9dbbaf; --accent-soft: #2f3a35; --accent-ink: #171a18;
+  --ok: #b2c08c; --ok-soft: #313424; --warn: #d4ab6c; --warn-soft: #3b3225;
+  --bad: #d9958a; --bad-soft: #3f2a26; --wait: #b8a6cc; --wait-soft: #332d38;
+  --scrim: rgba(0, 0, 0, .45);
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .35);
+  color-scheme: dark;
+}

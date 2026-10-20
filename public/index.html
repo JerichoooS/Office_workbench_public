@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- 状态栏颜色：一个 theme-color，由 settings.js 的 syncThemeColor() 按实际深浅色（含手动切换）实时改成页面底色 -->
+<meta name="theme-color" content="#f1efeb" id="theme-color">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="工作台">
+<title>工作台</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="stylesheet" href="/app/styles/tokens.css">
+<link rel="stylesheet" href="/app/styles/base.css">
+<link rel="stylesheet" href="/app/styles/layout.css">
+<link rel="stylesheet" href="/app/styles/components.css">
+</head>
+<body>
+<!-- 启动面板：脚本加载/登录检查期间可见；失败时显示错误代码 -->
+<section id="boot-status" role="status" aria-live="polite">
+  <h1 id="boot-title">正在打开工作台</h1>
+  <p id="boot-message">正在检查登录状态…</p>
+  <button type="button" class="btn" id="boot-retry">重新加载</button>
+  <noscript><p>工作台需要启用 JavaScript。</p></noscript>
+</section>
+
+<div id="root"></div>
+
+<!-- 启动顺序：boot.js（错误面板 + initCloud）→ 配置 → SDK → 应用模块 -->
+<script src="/app/boot.js?v=2.0.0"></script>
+<script src="/config.js?v=2.0.0"></script>
+<script src="/vendor/workbuddy-cloud-sdk.global.js"></script>
+<script type="module" src="/app/main.js?v=2.0.0"></script>
+</body>
+</html>

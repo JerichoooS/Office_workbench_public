@@ -1,0 +1,17 @@
+{
+  "name": "工作台",
+  "short_name": "工作台",
+  "description": "待办、任务、提醒",
+  "lang": "zh-CN",
+  "id": "/",
+  "start_url": "/#/today",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f1efeb",
+  "theme_color": "#f1efeb",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
