@@ -27,3 +27,7 @@ node server.js
 ## 第三方
 
 - `public/vendor/workbuddy-cloud-sdk.global.js`：WorkBuddy Cloud SDK（`@tencent-ai/workbuddy-cloud-sdk`，MIT 许可）
+
+## 许可
+
+本项目以 [MIT 许可](LICENSE) 开源。`public/vendor/` 下的第三方文件遵循其各自的许可（WorkBuddy Cloud SDK 为 MIT）。
