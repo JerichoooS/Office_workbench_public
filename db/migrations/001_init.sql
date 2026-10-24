@@ -17,7 +17,19 @@ DROP TABLE IF EXISTS modules CASCADE;
 
 DROP TABLE IF EXISTS llm_settings CASCADE;
 
-DROP TABLE IF EXISTS todos CASCADE;
+-- 防误跑（2026-10-22 补）：todos 表里已经有数据 = 正在使用的库，拒绝执行，避免把全部待办删掉。
+-- 只在全新库上执行 001；之后的改动都在 002 以后的文件里。
+DO $$
+DECLARE has_rows boolean := false;
+BEGIN
+  IF to_regclass('public.todos') IS NOT NULL THEN
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.todos LIMIT 1)' INTO has_rows;
+  END IF;
+  IF has_rows THEN
+    RAISE EXCEPTION 'todos 表里已有数据：001 只能在全新的库上执行，已拒绝（数据没有动）';
+  END IF;
+  DROP TABLE IF EXISTS todos CASCADE;
+END $$;
 
 -- ---------- 1. 通用：updated_at 自动维护 ----------
 CREATE OR REPLACE FUNCTION wb_touch_updated_at() RETURNS trigger LANGUAGE plpgsql AS $$

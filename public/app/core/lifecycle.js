@@ -3,11 +3,14 @@
 // 背景：添加到主屏幕后，iPhone 通常把 App 挂在后台而不是关掉；再打开时页面不会重新加载，
 // 所以「启动时才做的事」需要在回到前台时再做一遍：
 //   1) 把服务器口令交给服务器（管理员交接模式下，服务器重启/重新部署后需要）
-//   2) 重新拉一次数据（别的设备改过的内容）
+//   2) 重新拉一次数据（别的设备改过的内容）；联系人、设置、标签有模块缓存，要强制刷新
 //   3) 检查有没有新部署的版本，有就提示「点击更新」（整页重新加载才能用上新代码）
 // 下拉刷新只重新拉数据，不整页重载（快、不丢当前页面状态）；有新版本时才建议整页更新。
 
 import { changed } from '../data/db.js';
+import { listContacts } from '../data/repos/contacts.js';
+import { getSettings } from '../data/repos/settings.js';
+import { listTags } from '../data/repos/tags.js';
 import { handOverServerToken } from './pwa.js';
 import { drawerOpen, toast } from './dom.js';
 
@@ -36,6 +39,8 @@ export async function checkVersion() {
 /** 回到前台 / 下拉刷新时做的事 */
 export async function refreshAll({ reason = 'resume' } = {}) {
   await handOverServerToken();
+  // 这三样在仓储里有缓存，changed() 重绘时不会重新读：别的设备新建的等待对象会显示成空，所以先强制刷新（失败不影响重绘）
+  await Promise.all([listContacts(true), getSettings(true), listTags(true)]).catch(() => {});
   changed(reason);
   await checkVersion();
 }

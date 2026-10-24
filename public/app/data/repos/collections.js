@@ -43,11 +43,11 @@ export async function toggleTarget(target) {
   changed('collections');
 }
 
-/** 催办文字（用户复制后自己发） */
-export function chaserText(c) {
+/** 催办文字（用户复制后自己发）；截止时间已过就说「已于…截止」，不再说「将于」 */
+export function chaserText(c, now = new Date()) {
   const pend = (c.targets || []).filter(t => !t.submitted_at);
   if (!pend.length) return '';
   const due = c.due_at ? new Date(c.due_at) : null;
-  const when = due ? `将于 ${due.getMonth() + 1}月${due.getDate()}日（周${'日一二三四五六'[due.getDay()]}）${String(due.getHours()).padStart(2, '0')}:${String(due.getMinutes()).padStart(2, '0')} 截止` : '正在收集';
+  const when = due ? `${due <= now ? '已于' : '将于'} ${due.getMonth() + 1}月${due.getDate()}日（周${'日一二三四五六'[due.getDay()]}）${String(due.getHours()).padStart(2, '0')}:${String(due.getMinutes()).padStart(2, '0')} 截止` : '正在收集';
   return `各位同事好：\n「${c.title}」${when}，目前尚未收到 ${pend.map(t => t.name).join('、')} 的材料，请尽快报送。谢谢！`;
 }

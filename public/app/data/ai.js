@@ -1,10 +1,28 @@
 // ai.js — AI 增强层（可选）。关闭 AI 或没填 Key 时，所有函数安静地返回空结果，界面照常可用。
 // 调用链（沿用 v1）：同源代理 /api/deepseek/chat → DeepSeek 直连 → cloud.llm 免 Key 兜底
+// 发给模型的每段文字都先把电话号码打码（maskPhones）：手机 13800138000 → 138****8000，座机 010-12345678 → 010-****5678。
 
 import { cachedSettings } from './repos/settings.js';
 import { toast } from '../core/dom.js';
 
-let fallbackNoticed = false;   // 退回平台模型时只提示一次
+let fallbackNoticed = false;
+
+// ---------- 电话打码 ----------
+const MOBILE = /(?<![\d+])((?:\+?86[- ]?)?1[3-9]\d)[- ]?\d{4}[- ]?(\d{4})(?!\d)/g;
+const LANDLINE = /(?<![\d-])(0\d{2,3})(-?)\d{3,4}(\d{4})(?![\d-])/g;
+/** 把文字里的手机号、座机号中间几位换成 ****（发给模型前用） */
+export function maskPhones(text) {
+  if (typeof text !== 'string') return text;
+  return text.replace(MOBILE, (m, head, tail) => `${head}****${tail}`).replace(LANDLINE, (m, area, dash, tail) => `${area}${dash}****${tail}`);
+}
+/** 模型回来的文字里带着打过码的号码（如时间识别返回的标题）：换回原文里的号码，免得存进待办的是 138****8000 */
+export function unmaskPhones(out, original) {
+  if (typeof out !== 'string' || typeof original !== 'string') return out;
+  const pairs = [];
+  original.replace(MOBILE, m => { pairs.push([maskPhones(m), m]); return m; });
+  original.replace(LANDLINE, m => { pairs.push([maskPhones(m), m]); return m; });
+  return pairs.reduce((s, [masked, real]) => s.split(masked).join(real), out);
+}   // 退回平台模型时只提示一次
 
 /** AI 是否可用。feature 可选：'parse' 时间识别 / 'tags' 标签推荐 / 'brief' 简报 / 'top5' Top 5 */
 export const aiOn = feature => {
@@ -78,6 +96,7 @@ async function viaKeyless(messages, onDelta, signal) {
 export async function chat(messages, onDelta, signal, override = null, { maxTokens } = {}) {
   const s = override ? { ...cachedSettings(), ...override } : cachedSettings();
   if (!s || !s.llm_api_key) throw new Error('尚未配置 API Key，请到「设置」填写');
+  messages = messages.map(m => ({ ...m, content: maskPhones(m.content) }));   // 电话一律打码再发
   let last;
   // 测试指定 Key 时不走免 Key 兜底，否则 Key 错了也会显示「成功」
   const extra = maxTokens ? { max_tokens: maxTokens } : {};
@@ -137,7 +156,7 @@ export async function aiParse(text, now = new Date(), timeoutMs = 6000) {
     const out = await chat([
       { role: 'system', content: `把用户的一句话解析成待办。现在是 ${stamp}（北京时间）。只输出一行 JSON，不要解释：
 {"title":"去掉时间词后的待办标题","date":"YYYY-MM-DD 或 null","time":"HH:MM 或 null","remind":true/false,"waiting":true/false}
-规则：没说日期但说了时刻 → 今天（若已过则明天）；「下班前」=18:00，「中午」=12:00，「上午」默认10:00，「下午」默认15:00，「晚上」默认20:00；「催/等某人回复」→ waiting=true；说了「提醒」或有具体时刻 → remind=true。` },
+规则：没说日期但说了时刻 → 今天（若已过则明天）；「下班前」=17:30，「中午」=12:00，「上午」默认10:00，「下午」默认15:00，「晚上」默认20:00；「催/等某人回复」→ waiting=true；说了「提醒」或有具体时刻 → remind=true。` },
       { role: 'user', content: text },
     ], null, ctl.signal);
     const j = JSON.parse(out.slice(out.indexOf('{'), out.lastIndexOf('}') + 1));
@@ -150,7 +169,7 @@ export async function aiParse(text, now = new Date(), timeoutMs = 6000) {
     }
     if (due && isNaN(due)) return null;
     const label = due ? `${due.getMonth() + 1}/${due.getDate()} 周${'日一二三四五六'[due.getDay()]}${allDay ? '' : ' ' + pad(due.getHours()) + ':' + pad(due.getMinutes())}` : '';
-    return { title: j.title.trim() || text, due, allDay, remind: !!j.remind || !allDay, waiting: !!j.waiting, label, ai: true };
+    return { title: unmaskPhones(j.title.trim(), text) || text, due, allDay, remind: !!j.remind || !allDay, waiting: !!j.waiting, label, ai: true };
   } catch (_) { return null; }
   finally { clearTimeout(timer); }
 }

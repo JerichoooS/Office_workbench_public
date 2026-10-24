@@ -2,15 +2,18 @@
 
 import { table, run, changed } from '../db.js';
 
-let cache = null;
+let cache = null, loading = null;
 
-/** 读取设置；首次使用自动建默认行 */
-export async function getSettings(force = false) {
-  if (cache && !force) return cache;
-  let row = await run(table('user_settings').select('*').maybeSingle());
-  if (!row) row = await run(table('user_settings').insert({}).select().single());
-  cache = normalize(row);
-  return cache;
+/** 读取设置；首次使用自动建默认行。同时多处调用只读一次（避免新用户第一次打开时插两行、第二行撞主键报错） */
+export function getSettings(force = false) {
+  if (cache && !force) return Promise.resolve(cache);
+  if (!loading) loading = (async () => {
+    let row = await run(table('user_settings').select('*').maybeSingle());
+    if (!row) row = await run(table('user_settings').insert({}).select().single());
+    cache = normalize(row);
+    return cache;
+  })().finally(() => { loading = null; });
+  return loading;
 }
 
 export async function updateSettings(patch) {

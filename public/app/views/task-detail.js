@@ -1,29 +1,33 @@
 // task-detail.js — 项目详情：进度、说明、联系人、待办（可在本项目下快速新增）、材料收集入口
+// 过了结束日还有没做完的：顶部显示收尾块（和首页收尾卡相同，components/notices/wrapup.js），处理完没剩下的就归档。
 
 import { esc, toast, confirmSheet } from '../core/dom.js';
 import { go } from '../core/router.js';
-import { getTask, taskContactIds, timeInfo, archiveTask, restoreTask, removeTask } from '../data/repos/tasks.js';
-import { listTodos, setStatus } from '../data/repos/todos.js';
+import { getTask, taskContactIds, timeInfo, archiveTask, removeTask, wrapupOf } from '../data/repos/tasks.js';
+import { listTodos } from '../data/repos/todos.js';
 import { contactById } from '../data/repos/contacts.js';
 import { contactKind, taskStatus } from '../data/schema.js';
 import { listCollections } from '../data/repos/collections.js';
-import { todoRow } from '../components/todo-row.js';
+import { todoRow, toggleDone } from '../components/todo-row.js';
 import { mountCapture } from '../components/capture.js';
 import { openTodo } from '../components/todo-detail.js';
-import { openTaskForm } from '../components/task-form.js';
+import { openTaskForm, openRestoreSheet } from '../components/task-form.js';
+import { wrapupHtml, bindWrapup } from '../components/notices/wrapup.js';
 
 let showDone = false;
 
 export async function mount(root, { id }) {
   const t = await getTask(id);
   if (!t) { root.innerHTML = '<div class="wrap"><div class="placeholder">项目不存在或已删除。<a href="#/tasks">返回项目</a></div></div>'; return; }
-  const [todos, cids, cols] = await Promise.all([listTodos({ taskId: t.id }), taskContactIds(t.id), listCollections({ taskId: t.id })]);
+  const [todos, cids, cols, wrap] = await Promise.all([listTodos({ taskId: t.id, done: 'all' }), taskContactIds(t.id), listCollections({ taskId: t.id }),
+    t.archived_at ? null : wrapupOf(t.id).catch(() => null)]);
   const open = todos.filter(x => x.status !== 'done'), done = todos.filter(x => x.status === 'done');
   const { ratio, left } = timeInfo(t);
   const contacts = cids.map(contactById).filter(Boolean);
 
   root.innerHTML = `<div class="wrap wide">
     <div><a class="btn small" href="#/tasks">← 项目</a></div>
+    ${wrap ? `<div class="notice" id="wrapup">${wrapupHtml(wrap, { link: false })}</div>` : ''}
     <div class="page-head"><div style="min-width:0"><h1>${esc(t.title)}</h1>
       <div class="sub">${t.start_date ? `<span class="num">${esc(t.start_date)} → ${esc(t.end_date || '')}</span> · ` : ''}${t.archived_at ? '已归档' : taskStatus(t.status).label}${left !== null && left >= 0 ? ` · 剩 <span class="num">${left}</span> 天` : ''}</div></div>
       <span class="sp"></span>
@@ -46,17 +50,18 @@ export async function mount(root, { id }) {
   </div>`;
 
   mountCapture(root.querySelector('#cap-box'), { taskId: t.id });
+  if (wrap) bindWrapup(root.querySelector('#wrapup'), wrap, () => mount(root, { id }));
 
   root.onclick = async e => {
     const chk = e.target.closest('[data-check]');
-    if (chk) { e.stopPropagation(); const x = todos.find(y => String(y.id) === chk.dataset.check); await setStatus(x, x.status === 'done' ? 'todo' : 'done', { task: t }); return; }
+    if (chk) { e.stopPropagation(); const x = todos.find(y => String(y.id) === chk.dataset.check); await toggleDone(x, { task: t, el: chk }); return; }
     const row = e.target.closest('[data-todo]');
     if (row) { openTodo(row.dataset.todo); return; }
     const a = e.target.closest('[data-act]'); if (!a) return;
     switch (a.dataset.act) {
       case 'edit': openTaskForm(t); break;
       case 'archive': await archiveTask(t.id); toast('已归档，可在「项目」页底部恢复'); break;
-      case 'restore': await restoreTask(t.id); toast('已恢复'); break;
+      case 'restore': openRestoreSheet(t); break;   // 先定新的结束日期再恢复，否则下次打开又被自动归档
       case 'done': showDone = !showDone; mount(root, { id }); break;
       case 'delete':
         if (await confirmSheet(`删除项目「${t.title}」？下面的待办会保留，但不再归属任何项目。`, '删除', true)) { await removeTask(t.id); toast('已删除'); go('/tasks'); }

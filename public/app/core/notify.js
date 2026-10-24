@@ -43,7 +43,10 @@ export function reminderMessage({ reminder, todo, task, waitingName, now = new D
   }
   const due = dueText(todo.due_at, todo.due_all_day, now, tz);
   const head = reminder.kind === 'at_time' ? '到点了' : '快到期';
-  return { title: `${head}：${todo.title}`, body: [due && `截止 ${due}`, task && task.title].filter(Boolean).join(' · ') || '点开查看', url, tag: `todo-${todo.id}` };
+  // 晚于原定时间 5 分钟以上才送出（服务器暂停后补发）：如实标明，避免误以为提醒时间设错了
+  const lateMin = reminder.fire_at ? Math.round((now - new Date(reminder.fire_at)) / 60000) : 0;
+  const late = lateMin >= 5 ? `补发 · 原定 ${dueText(reminder.fire_at, false, now, tz)}` : '';
+  return { title: `${head}：${todo.title}`, body: [late, due && `截止 ${due}`, task && task.title].filter(Boolean).join(' · ') || '点开查看', url, tag: `todo-${todo.id}` };
 }
 
 /** 早报 / 晚报。todos 为该用户全部待办（含已完成） */

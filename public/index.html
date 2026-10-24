@@ -16,6 +16,18 @@
 <link rel="stylesheet" href="/app/styles/base.css">
 <link rel="stylesheet" href="/app/styles/layout.css">
 <link rel="stylesheet" href="/app/styles/components.css">
+<script>
+/* 外观在样式表之后、页面绘制之前套用，深色模式打开时不再先闪一下浅色（规则同 settings.js 的 applyAppearance） */
+(function () { try {
+  var d = document.documentElement, a = JSON.parse(localStorage.getItem('wb-appearance') || '{}'), mode = localStorage.getItem('wb-theme-mode') || '';
+  var skin = a.field ? 'venue' : a.skin, font = a.field ? 'large' : a.font;
+  if (skin && skin !== 'linen') d.setAttribute('data-skin', skin);
+  if (font) d.setAttribute('data-font', font);
+  if (mode) d.setAttribute('data-theme', mode);
+  var bg = getComputedStyle(d).getPropertyValue('--bg').trim(), m = document.getElementById('theme-color');
+  if (m && bg) m.setAttribute('content', bg);
+} catch (e) {} })();
+</script>
 </head>
 <body>
 <!-- 启动面板：脚本加载/登录检查期间可见；失败时显示错误代码 -->
@@ -23,6 +35,7 @@
   <h1 id="boot-title">正在打开工作台</h1>
   <p id="boot-message">正在检查登录状态…</p>
   <button type="button" class="btn" id="boot-retry">重新加载</button>
+  <button type="button" class="btn" id="boot-relogin" hidden>重新登录</button>
   <noscript><p>工作台需要启用 JavaScript。</p></noscript>
 </section>
 

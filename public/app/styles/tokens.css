@@ -1,59 +1,140 @@
 /* =====================================================================
- * 设计令牌（唯一的颜色/字体/圆角来源）
+ * 设计令牌（唯一的颜色/字体/字号/圆角来源）
  * 规则：组件样式只能用这里的变量，不写字面颜色值。
- * 新主题：复制一组变量，挂在 :root[data-skin="xxx"] 下即可（见 docs/开发规范.md §5）。
+ * 配色（皮肤）：:root[data-skin="xxx"]，每套都有浅色 + 深色；默认 linen 不写属性。
+ *   linen 亚麻（默认）· paper 宣纸 · venue 现场（高对比，「现场模式」用它）
+ *   每个文字色都按 WCAG 对比度目标求出：正文 ≥ 7，次要文字 ≥ 4.5（小字标准），最浅的提示字 ≥ 4.5（对卡片）
+ * 深浅：data-theme="light|dark"，不写 = 跟随系统。
+ * 字号：data-font="large" 整体放大 1.125 倍（组件字号一律写成 calc(Npx * var(--fs))）。
+ * 外观只影响当前设备：存 localStorage「wb-appearance」，index.html 在样式表之后立即套用，避免启动闪白。
+ * 新增一套皮肤：照下面的格式复制三段（浅色、跟随系统的深色、手动深色），并在 settings.js 的 SKINS 里登记。
  * ===================================================================== */
 :root {
-  /* 颜色 · 亚麻暖灰（默认主题 linen） */
-  --bg: #f1efeb;
-  --surface: #fbfaf8;
-  --sunken: #e8e5df;
-  --line: #dcd7cf;
-  --ink: #2b2925;
-  --ink-2: #67625a;
-  --ink-3: #9a948a;
-  --accent: #557268;
-  --accent-soft: #e0e7e2;
-  --accent-ink: #f7f8f5;
-  --ok: #73844f;   --ok-soft: #e7eadb;
-  --warn: #a5793a; --warn-soft: #f1e7d6;
-  --bad: #a95a4c;  --bad-soft: #f2e1dc;
-  --wait: #7a6a8c; --wait-soft: #e9e3ec;
-  --scrim: rgba(30, 28, 25, .28);
-  --shadow: 0 1px 2px rgba(43, 41, 37, .06), 0 8px 24px rgba(43, 41, 37, .08);
+  /* 颜色 · 亚麻（默认）：亚麻暖灰底 + 深一号的鼠尾草绿 */
+  --bg: #f1efeb; --surface: #fbfaf8; --sunken: #e8e5df; --raised: #fbfaf8; --line: #dbd8d0;
+  --ink: #2a2723; --ink-2: #59564f; --ink-3: #757169;
+  --accent: #345a54; --accent-soft: #dbebe8; --accent-ink: #f8fcfb;
+  --ok: #4b723e; --ok-soft: #e3ede0;  --warn: #8c5f01; --warn-soft: #f1e8db;
+  --bad: #a64c47; --bad-soft: #f7e5e3;  --wait: #795c88; --wait-soft: #eee6f1;
+  --scrim: rgba(23, 22, 19, .3);
+  --shadow: 0 1px 2px rgba(42, 39, 35, .06), 0 8px 24px rgba(42, 39, 35, .08);
+  --shadow-sm: 0 1px 2px rgba(42, 39, 35, .08);
+
+  /* 输入框边框：比分隔线深一档，浅色底上也看得出框 */
+  --line-strong: color-mix(in srgb, var(--ink-3) 45%, var(--line));
 
   /* 字体：只用系统字体（Google Fonts / jsDelivr 在国内不可靠，见 docs/开发规范.md） */
   --f-ui: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
-  --f-num: ui-monospace, "SF Mono", Menlo, monospace;
+  --f-num: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --fs: 1;   /* 字号倍率：设置 › 外观 › 字号 */
 
   /* 尺寸 */
   --r: 10px;
   --r-sm: 8px;
   --side-w: 216px;
-  --drawer-w: 420px;
+  --drawer-w: 440px;
   --tabbar-h: 62px;
+  --hit: 44px;   /* 最小触控区 */
   color-scheme: light;
 }
+:root[data-font="large"] { --fs: 1.125; }
 
+/* 亚麻 · 深色（输入框比卡片深 = 凹进去；分段选中项、弹层比卡片亮 = 浮起来） */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #1b1a18; --surface: #23221f; --sunken: #2c2a27; --line: #3a3733;
-    --ink: #ebe7e1; --ink-2: #b2aca3; --ink-3: #847e75;
-    --accent: #9dbbaf; --accent-soft: #2f3a35; --accent-ink: #171a18;
-    --ok: #b2c08c; --ok-soft: #313424; --warn: #d4ab6c; --warn-soft: #3b3225;
-    --bad: #d9958a; --bad-soft: #3f2a26; --wait: #b8a6cc; --wait-soft: #332d38;
-    --scrim: rgba(0, 0, 0, .45);
-    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .35);
+    --bg: #191714; --surface: #22201d; --sunken: #110f0d; --raised: #2c2a27; --line: #373531;
+    --ink: #ece7df; --ink-2: #b0aaa0; --ink-3: #8e887e;
+    --accent: #95c2ba; --accent-soft: #223531; --accent-ink: #111918;
+    --ok: #82a776; --ok-soft: #243120;  --warn: #c1934d; --warn-soft: #372a18;
+    --bad: #da837c; --bad-soft: #3c2624;  --wait: #ac91bb; --wait-soft: #322837;
+    --scrim: rgba(0, 0, 0, .5);
+    --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 8px 24px rgba(0, 0, 0, .4);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #1b1a18; --surface: #23221f; --sunken: #2c2a27; --line: #3a3733;
-  --ink: #ebe7e1; --ink-2: #b2aca3; --ink-3: #847e75;
-  --accent: #9dbbaf; --accent-soft: #2f3a35; --accent-ink: #171a18;
-  --ok: #b2c08c; --ok-soft: #313424; --warn: #d4ab6c; --warn-soft: #3b3225;
-  --bad: #d9958a; --bad-soft: #3f2a26; --wait: #b8a6cc; --wait-soft: #332d38;
-  --scrim: rgba(0, 0, 0, .45);
-  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .35);
+  --bg: #191714; --surface: #22201d; --sunken: #110f0d; --raised: #2c2a27; --line: #373531;
+  --ink: #ece7df; --ink-2: #b0aaa0; --ink-3: #8e887e;
+  --accent: #95c2ba; --accent-soft: #223531; --accent-ink: #111918;
+  --ok: #82a776; --ok-soft: #243120;  --warn: #c1934d; --warn-soft: #372a18;
+  --bad: #da837c; --bad-soft: #3c2624;  --wait: #ac91bb; --wait-soft: #322837;
+  --scrim: rgba(0, 0, 0, .5);
+  --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 8px 24px rgba(0, 0, 0, .4);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
+  color-scheme: dark;
+}
+
+/* ---------- 宣纸：象牙色纸面 + 松烟墨，几乎无彩；适合在电脑上写公文、整理材料 ---------- */
+:root[data-skin="paper"] {
+  --bg: #f4f0e8; --surface: #fdfcf7; --sunken: #ece7db; --raised: #fdfcf7; --line: #dfd9c9;
+  --ink: #25231c; --ink-2: #5b574d; --ink-3: #777367;
+  --accent: #3c3833; --accent-soft: #e9e1db; --accent-ink: #fdfbf8;
+  --ok: #4b723e; --ok-soft: #e3ede0;  --warn: #8c5f01; --warn-soft: #f1e8db;
+  --bad: #a64c47; --bad-soft: #f7e5e3;  --wait: #795c88; --wait-soft: #eee6f1;
+  --scrim: rgba(24, 22, 16, .3);
+  --shadow: 0 1px 2px rgba(37, 35, 28, .06), 0 8px 24px rgba(37, 35, 28, .08);
+  --shadow-sm: 0 1px 2px rgba(37, 35, 28, .08);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-skin="paper"]:not([data-theme="light"]) {
+    --bg: #171412; --surface: #201e1b; --sunken: #0f0d0a; --raised: #2a2724; --line: #36322e;
+    --ink: #efe8e1; --ink-2: #afa79e; --ink-3: #8e867d;
+    --accent: #d4cec2; --accent-soft: #35332d; --accent-ink: #17150f;
+    --ok: #7fa473; --ok-soft: #222e1e;  --warn: #be914b; --warn-soft: #342816;
+    --bad: #d68079; --bad-soft: #3a2321;  --wait: #a98eb7; --wait-soft: #2f2634;
+    --scrim: rgba(0, 0, 0, .5);
+    --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 8px 24px rgba(0, 0, 0, .4);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
+    color-scheme: dark;
+  }
+}
+:root[data-skin="paper"][data-theme="dark"] {
+  --bg: #171412; --surface: #201e1b; --sunken: #0f0d0a; --raised: #2a2724; --line: #36322e;
+  --ink: #efe8e1; --ink-2: #afa79e; --ink-3: #8e867d;
+  --accent: #d4cec2; --accent-soft: #35332d; --accent-ink: #17150f;
+  --ok: #7fa473; --ok-soft: #222e1e;  --warn: #be914b; --warn-soft: #342816;
+  --bad: #d68079; --bad-soft: #3a2321;  --wait: #a98eb7; --wait-soft: #2f2634;
+  --scrim: rgba(0, 0, 0, .5);
+  --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 8px 24px rgba(0, 0, 0, .4);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
+  color-scheme: dark;
+}
+
+/* ---------- 现场：高对比（纯白卡片、近黑文字；深色为纯黑底）；户外强光下、单手边走边看 ---------- */
+:root[data-skin="venue"] {
+  --bg: #f4f2ef; --surface: #ffffff; --sunken: #e8e6e2; --raised: #ffffff; --line: #cbc9c4;
+  --ink: #13110f; --ink-2: #4a4844; --ink-3: #63605b;
+  --accent: #014843; --accent-soft: #d8edea; --accent-ink: #f8fcfb;
+  --ok: #3a602d; --ok-soft: #e3ede0;  --warn: #754f00; --warn-soft: #f1e8db;
+  --bad: #913a36; --bad-soft: #f7e5e3;  --wait: #674b75; --wait-soft: #eee6f1;
+  --scrim: rgba(23, 22, 20, .3);
+  --shadow: 0 1px 2px rgba(19, 17, 15, .06), 0 8px 24px rgba(19, 17, 15, .08);
+  --shadow-sm: 0 1px 2px rgba(19, 17, 15, .08);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-skin="venue"]:not([data-theme="light"]) {
+    --bg: #000000; --surface: #141414; --sunken: #060606; --raised: #1e1e1e; --line: #424242;
+    --ink: #f8f7f4; --ink-2: #c1bfbb; --ink-3: #9c9a96;
+    --accent: #8cd0c8; --accent-soft: #142b29; --accent-ink: #0f1212;
+    --ok: #93b987; --ok-soft: #202d1c;  --warn: #d4a55f; --warn-soft: #332614;
+    --bad: #ed958d; --bad-soft: #382220;  --wait: #bfa3ce; --wait-soft: #2e2533;
+    --scrim: rgba(0, 0, 0, .62);
+    --shadow: 0 0 0 1px #424242, 0 8px 24px rgba(0, 0, 0, .6);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
+    color-scheme: dark;
+  }
+}
+:root[data-skin="venue"][data-theme="dark"] {
+  --bg: #000000; --surface: #141414; --sunken: #060606; --raised: #1e1e1e; --line: #424242;
+  --ink: #f8f7f4; --ink-2: #c1bfbb; --ink-3: #9c9a96;
+  --accent: #8cd0c8; --accent-soft: #142b29; --accent-ink: #0f1212;
+  --ok: #93b987; --ok-soft: #202d1c;  --warn: #d4a55f; --warn-soft: #332614;
+  --bad: #ed958d; --bad-soft: #382220;  --wait: #bfa3ce; --wait-soft: #2e2533;
+  --scrim: rgba(0, 0, 0, .62);
+  --shadow: 0 0 0 1px #424242, 0 8px 24px rgba(0, 0, 0, .6);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
   color-scheme: dark;
 }

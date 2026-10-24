@@ -13,6 +13,7 @@
     WB_CONFIG_MISSING: '应用配置不完整，请联系维护人员。',
     WB_AUTH_TIMEOUT: '登录状态检查超时，请检查网络后重试。',
     WB_AUTH_UNAVAILABLE: '暂时无法检查登录状态，请稍后重试。',
+    WB_AUTH_OFFLINE: '网络不稳定，暂时无法确认登录状态。数据都在云端，没有丢失；网络恢复后点「重新加载」。',
     WB_STARTUP_TIMEOUT: '页面启动超时，请重试。',
     WB_SCRIPT_LOAD: '页面组件加载失败，请重试。',
     WB_SCRIPT_ERROR: '页面脚本运行异常，请联系维护人员。',
@@ -55,6 +56,9 @@
     p.setAttribute('role', 'alert');
     document.getElementById('boot-title').textContent = '工作台暂时无法打开';
     document.getElementById('boot-message').textContent = messages[code] + ' 错误代码：' + code;
+    // 一直确认不了登录状态时的退路：清掉本机登录信息，重新扫码
+    var relogin = document.getElementById('boot-relogin');
+    if (relogin) relogin.hidden = code !== 'WB_AUTH_OFFLINE';
     var root = document.getElementById('root');
     if (root) root.hidden = true;
   };
@@ -65,6 +69,11 @@
       var url = new URL(location.href);
       ['code', 'state', 'provider', 'error', 'error_description'].forEach(function (k) { url.searchParams.delete(k); });
       location.replace(url.pathname + url.search + url.hash);
+    });
+    var relogin = document.getElementById('boot-relogin');
+    if (relogin) relogin.addEventListener('click', function () {
+      try { Object.keys(localStorage).forEach(function (k) { if (k.indexOf('workbuddy-cloud.session.') === 0) localStorage.removeItem(k); }); } catch (_) { /* 无痕模式 */ }
+      location.replace(location.origin + '/');
     });
   });
 

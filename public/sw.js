@@ -22,7 +22,9 @@ self.addEventListener('push', event => {
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  const url = new URL((event.notification.data && event.notification.data.url) || '/#/today', self.location.origin).href;
+  // 只打开本站地址：推送内容里的 url 若指向别的网站（或写坏了），一律改开首页
+  let url = new URL('/#/today', self.location.origin).href;
+  try { const u = new URL((event.notification.data && event.notification.data.url) || '/#/today', self.location.origin); if (u.origin === self.location.origin) url = u.href; } catch (_) { /* 用首页 */ }
   event.waitUntil((async () => {
     const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const w of wins) {

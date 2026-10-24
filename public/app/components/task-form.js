@@ -1,9 +1,9 @@
-// task-form.js — 新建 / 编辑项目；新建时可搜索历史项目一键套用（日期自动平移）
+// task-form.js — 新建 / 编辑项目；新建时可搜索历史项目一键套用（日期自动平移）；恢复已归档项目（先定新的结束日期）
 
 import { esc, openSheet, closeSheet, toast } from '../core/dom.js';
-import { ymd, parseYmd } from '../core/dates.js';
+import { ymd, parseYmd, addDays } from '../core/dates.js';
 import { TASK_STATUS, CONTACT_KIND, contactKind } from '../data/schema.js';
-import { createTask, updateTask, taskContactIds, searchTasks, cloneTask } from '../data/repos/tasks.js';
+import { createTask, updateTask, taskContactIds, searchTasks, cloneTask, restoreTask } from '../data/repos/tasks.js';
 import { listContacts, createContact } from '../data/repos/contacts.js';
 import { go } from '../core/router.js';
 
@@ -24,7 +24,7 @@ export async function openTaskForm(task = null) {
         <div class="contacts" id="tf-contacts"></div>
         <div class="inline-input"><input id="tf-nc" placeholder="新联系人名称"><select id="tf-nck" class="time-in">${CONTACT_KIND.map(k => `<option value="${k.v}">${k.label}</option>`).join('')}</select><button class="btn small" data-x="addc">添加</button></div></div>
       <label>说明<textarea id="tf-desc" rows="3" placeholder="这件事要做成什么样">${esc(t.description || '')}</textarea></label>
-      <span class="hint">结束日期过后自动归档；归档的项目在「项目」页底部，可以恢复。</span>
+      <span class="hint">过了结束日期：待办都做完了自动归档，还有没做完的先提醒你收尾。归档的项目在「项目」页底部，可以恢复。</span>
     </div>`, { label: isNew ? '新建项目' : '编辑项目' });
 
   const $ = s => el.querySelector(s);
@@ -34,7 +34,13 @@ export async function openTaskForm(task = null) {
   drawContacts();
   setTimeout(() => $('#tf-title').focus(), 250);
 
-  let source = null;
+  let source = null, prevStart = $('#tf-s').value;
+  // 套用之后改开始日期：结束日期跟着平移同样的天数（保持项目时长）；结束日期仍可单独改
+  $('#tf-s').addEventListener('change', e => {
+    const s = e.target.value, end = $('#tf-e').value;
+    if (source && prevStart && s && end) $('#tf-e').value = ymd(addDays(parseYmd(end), Math.round((parseYmd(s) - parseYmd(prevStart)) / 86400000)));
+    prevStart = s;
+  });
   if (isNew) {
     let timer;
     $('#tf-q').addEventListener('input', e => {
@@ -64,7 +70,7 @@ export async function openTaskForm(task = null) {
         const e2 = parseYmd($('#tf-s').value); e2.setDate(e2.getDate() + len); $('#tf-e').value = ymd(e2);
       }
       drawContacts();
-      $('#tf-hits').innerHTML = `<div class="empty">将套用「${esc(source.title)}」：联系人、待办清单、材料收集一起复制，日期按新的开始日整体平移。改好名称和开始日期后点保存。</div>`;
+      $('#tf-hits').innerHTML = `<div class="empty">将套用「${esc(source.title)}」：联系人、待办清单、材料收集一起复制，日期按新的开始日整体平移（改开始日期时结束日期跟着走）。改好名称和开始日期后点保存。</div>`;
       return;
     }
     switch (b.dataset.x) {
@@ -91,5 +97,26 @@ export async function openTaskForm(task = null) {
         }
       }
     }
+  };
+}
+
+/** 恢复已归档的项目：先定新的结束日期（默认一周后）。结束日期还在过去的话，下次打开应用又会被自动归档 */
+export function openRestoreSheet(task) {
+  const today = ymd(new Date()), min = task.start_date > today ? task.start_date : today;
+  // 原结束日期还没到（手动归档的）就沿用原日期，否则默认一周后
+  const def = task.end_date && task.end_date >= min ? task.end_date : ymd(addDays(parseYmd(min), 7));
+  const el = openSheet(`<div class="sheet-head"><b>恢复项目</b><span class="sp"></span>
+      <button class="btn small" data-x="cancel">取消</button><button class="btn small primary" data-x="ok">恢复</button></div>
+    <div class="form">
+      <div class="hint">「${esc(task.title)}」原定 <span class="num">${esc(task.end_date || '—')}</span> 结束。恢复后到了新的结束日期，待办都做完会自动归档，没做完会提醒你收尾。请定一个新的结束日期。</div>
+      <label>新的结束日期<input id="rs-end" type="date" value="${def}" min="${min}"></label>
+    </div>`, { label: '恢复项目' });
+  el.onclick = async e => {
+    const b = e.target.closest('[data-x]'); if (!b) return;
+    if (b.dataset.x === 'cancel') { closeSheet(); return; }
+    const end = el.querySelector('#rs-end').value;
+    if (!end || end < min) { toast(min > today ? '结束日期不能早于开始日期' : '结束日期不能早于今天'); return; }
+    b.disabled = true;
+    try { await restoreTask(task.id, end); closeSheet(); toast(`已恢复为进行中，${end.slice(5)} 结束`); } finally { b.disabled = false; }
   };
 }

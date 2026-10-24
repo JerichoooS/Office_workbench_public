@@ -37,7 +37,8 @@ function cloud() {
 function createDbStore(token, rpcImpl) {
   async function rpc(name, params = {}) {
     const res = rpcImpl ? await rpcImpl(name, { p_token: token, ...params }) : await cloud().database.rpc(name, { p_token: token, ...params });
-    if (res.error) { const e = new Error(`${name}: ${res.error.message || res.error.code}`); e.code = res.error.code; throw e; }
+    // code / status 原样带出：调度据此判断「函数不存在 = 数据库还没执行 005」（见 scheduler.js missingRpc）
+    if (res.error) { const e = new Error(`${name}: ${res.error.message || res.error.code}`); e.code = res.error.code; e.status = res.status || res.error.status; throw e; }
     return res.data;
   }
 
@@ -50,12 +51,18 @@ function createDbStore(token, rpcImpl) {
     },
     async claimDueReminders(now, catchUpMs) {
       const rows = (await rpc('wb_claim_due', { p_limit: 200 })) || [];
-      return rows.map(r => ({ ...r, stale: now - new Date(r.reminder.fire_at) > catchUpMs }));
+      // 重试中的（attempts > 0）不算过期：它第一次没送到时还在补发窗口内，不能因为重试拖过了 6 小时就悄悄丢掉
+      return rows.map(r => ({ ...r, stale: !(r.reminder.attempts > 0) && now - new Date(r.reminder.fire_at) > catchUpMs }));
     },
     async scheduleNudge(reminder, todo, fireAt) { return rpc('wb_schedule_nudge', { p_todo_id: todo.id, p_fire_at: new Date(fireAt).toISOString() }); },
     async listDigestCandidates() { return (await rpc('wb_digest_candidates')) || []; },
     async markDigestSent(owner, kind, day) { return !!(await rpc('wb_mark_digest', { p_owner: owner, p_kind: kind, p_day: day })); },
     async removeSubscription(endpoint) { return rpc('wb_remove_subscription', { p_endpoint: endpoint }); },
+    // 以下两个函数在 005_phase2.sql 里；没执行 005 时会报 PGRST202 / 42883，由 scheduler.js 记一行日志后跳过，不影响发提醒
+    /** 一条提醒没送达：retry = true 放回队列 2/4/6 分钟后重发（最多 3 次），否则记为没送达。返回 'retry' / 'failed' / 'gone' */
+    async reminderFailed(id, retry) { return rpc('wb_reminder_failed', { p_id: id, p_retry: !!retry }); },
+    /** 每日云端快照：每人每天一份（已有就跳过），只留 14 天。返回本次新存了几份 */
+    async dailySnapshots() { return rpc('wb_daily_snapshots'); },
   };
 }
 

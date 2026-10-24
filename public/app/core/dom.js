@@ -21,19 +21,45 @@ const ICON_PATHS = {
   inbox: '<path d="M4 13l2.5-8h11L20 13v6H4z"/><path d="M4 13h4.5l1.5 2.5h4l1.5-2.5H20"/>',
   more: '<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>',
   bell: '<path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  phone: '<path d="M6.5 3.5h3l1.5 4-2 1.3a10 10 0 0 0 6.2 6.2l1.3-2 4 1.5v3a2 2 0 0 1-2.2 2A16.5 16.5 0 0 1 4.5 5.7a2 2 0 0 1 2-2.2z"/>',
+  download: '<path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19.5h14"/>',
+  copy: '<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6a1.5 1.5 0 0 0-1.5-1.5H6A1.5 1.5 0 0 0 4.5 6v8A1.5 1.5 0 0 0 6 15.5h2.5"/>',
+  report: '<path d="M6 3.5h9l3.5 3.5v13.5H6z"/><path d="M9 11h7M9 14.5h7M9 18h4"/>',
+  // 记一条识别结果里的小图标（替代彩色 emoji，深浅色都跟着文字颜色走）
+  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  calendar: '<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/>',
+  repeat: '<path d="M17 3.5l3 3-3 3"/><path d="M4 11.5v-1a4 4 0 0 1 4-4h12"/><path d="M7 20.5l-3-3 3-3"/><path d="M20 12.5v1a4 4 0 0 1-4 4H4"/>',
+  note: '<path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4M9 12h6M9 15.5h4"/>',
 };
 export const icon = name => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name] || ''}</svg>`;
 
 // ---------- toast ----------
-export function toast(msg) {
+/**
+ * 底部提示。opts.action = { label: '撤销', onClick }：带一个按钮（撤销 / 打开 / 重试），停留时间加长；
+ * 文字长时自动换行，不会超出屏幕。
+ */
+export function toast(msg, { action = null, ms } = {}) {
   let t = document.getElementById('toast');
   if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; t.setAttribute('role', 'status'); document.body.appendChild(t); }
-  t.textContent = msg;
-  t.classList.add('on');
+  t.innerHTML = `<span class="toast-msg">${esc(msg)}</span>${action ? `<button type="button" class="toast-act">${esc(action.label)}</button>` : ''}`;
+  t.classList.toggle('has-act', !!action);
+  if (action) t.querySelector('.toast-act').onclick = () => { t.classList.remove('on'); action.onClick(); };
+  t.classList.remove('on'); void t.offsetWidth; t.classList.add('on');
   clearTimeout(t._h);
-  t._h = setTimeout(() => t.classList.remove('on'), 1900);
+  t._h = setTimeout(() => t.classList.remove('on'), ms || (action ? 5000 : 2200));
 }
 window.WBToast = toast;
+
+/**
+ * 备注、进展里的文字：转义后把网址变成可点链接、手机号变成可拨号码（在外面直接点着打）。
+ * 只认 http(s) 网址和 1 开头的 11 位手机号 / 带区号的座机，其它保持纯文本。
+ */
+export function linkify(text) {
+  return esc(text).replace(/(https?:\/\/[^\s<>"'，。；）)]+)|((?<![\d-])(?:1[3-9]\d{9}|0\d{2,3}-?\d{7,8})(?![\d-]))/g, (m, url, tel) =>
+    url ? `<a href="${url}" target="_blank" rel="noopener">${url}</a>` : `<a href="tel:${tel.replace(/-/g, '')}">${tel}</a>`);
+}
 
 // ---------- 遮罩、底部弹层、详情抽屉 ----------
 function ensure(id, cls, tag = 'div') {
@@ -124,4 +150,15 @@ export function confirmSheet(text, okLabel = '确定', danger = false) {
       done = true; resolve(b.dataset.x === 'ok'); closeSheet();
     };
   });
+}
+
+/** 复制文字；剪贴板接口不可用（非 https、旧浏览器）时退回选中复制 */
+export async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch (_) { /* 退回旧方法 */ }
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+  document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, text.length);
+  let ok = false; try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
+  ta.remove();
+  return ok;
 }

@@ -49,11 +49,19 @@ async function resumeSession() {
       if (res.error.kind === 'unauthenticated' || res.error.kind === 'invalid_grant') return null;
       throw authError();
     }
+    // 断网时登录凭证刷新失败，SDK 返回空会话但不清掉本机保存的登录信息（真正失效时会清掉）。
+    // 这种情况不能当成「没登录」显示登录页，而是提示网络问题。
+    if (!res.data && storedSession()) throw authError('WB_AUTH_OFFLINE');
     return res.data || null;
   } catch (error) {
-    if (error && error.code === 'WB_AUTH_TIMEOUT') throw error;
+    if (error && (error.code === 'WB_AUTH_TIMEOUT' || error.code === 'WB_AUTH_OFFLINE')) throw error;
     throw authError();
   }
+}
+
+/** 本机是否还存着登录信息（SDK 存在 localStorage 的 workbuddy-cloud.session.<publishableKey>） */
+function storedSession() {
+  try { const c = window.WB_PUBLIC_CONFIG; return !!(c && localStorage.getItem('workbuddy-cloud.session.' + c.publishableKey)); } catch (_) { return false; }
 }
 
 /** 发起微信扫码登录；返回错误文案或跳转 */

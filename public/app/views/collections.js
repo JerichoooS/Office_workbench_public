@@ -8,6 +8,8 @@ import { CONTACT_KIND, contactKind } from '../data/schema.js';
 import { listCollections, getCollection, createCollection, toggleTarget, addTarget, removeTarget, removeCollection, updateCollection, chaserText } from '../data/repos/collections.js';
 import { listTasks } from '../data/repos/tasks.js';
 import { listContacts } from '../data/repos/contacts.js';
+import { phase2 } from '../data/features.js';
+import { toastDeleted } from '../data/repos/trash.js';
 
 const qs = () => new URLSearchParams(location.hash.split('?')[1] || '');
 
@@ -53,7 +55,13 @@ async function detail(root, id) {
   </div>`;
   root.onclick = async e => {
     const tg = e.target.closest('[data-tg]'); if (tg) { await toggleTarget(c.targets.find(t => String(t.id) === tg.dataset.tg)); return; }
-    const rm = e.target.closest('[data-rm]'); if (rm) { await removeTarget(rm.dataset.rm); return; }
+    // 移除收集对象：第二阶段进「最近删除」，提示条上可撤销；旧库照旧直接移除
+    const rm = e.target.closest('[data-rm]'); if (rm) {
+      const tg = c.targets.find(t => String(t.id) === rm.dataset.rm);
+      await removeTarget(rm.dataset.rm);
+      if (phase2()) toastDeleted('collection_target', rm.dataset.rm, { msg: `已移除「${tg ? tg.name : ''}」` });
+      return;
+    }
     const a = e.target.closest('[data-act]'); if (!a) return;
     switch (a.dataset.act) {
       case 'add': {
@@ -82,19 +90,21 @@ async function openNew(taskId = null) {
       <div class="row2"><label>截止<input id="n-due" type="datetime-local"></label>
         <label>所属项目<select id="n-task"><option value="">不归入</option>${tasks.map(t => `<option value="${t.id}" ${String(t.id) === String(taskId) ? 'selected' : ''}>${esc(t.title)}</option>`).join('')}</select></label></div>
       <div class="field">向谁收（点选常用对象，或在下面输入）
-        <div class="contacts" id="n-pick">${orgs.map(c => `<button class="chip ghost" data-c="${esc(c.name)}" data-k="${c.kind}">${esc(c.name)}<span class="hint">${contactKind(c.kind)}</span></button>`).join('')}</div></div>
+        <div class="contacts" id="n-pick">${orgs.map(c => `<button class="chip ghost" data-c="${c.id}">${esc(c.name)}<span class="hint">${contactKind(c.kind)}</span></button>`).join('')}</div></div>
       <label>其他对象（顿号或逗号隔开）<input id="n-more" placeholder="行政部、财务部、市场部"></label>
     </div>`, { label: '发起材料收集', onClose: () => { if (qs().get('new') !== null) go('/collections'); } });
-  const picked = new Map();
+  const picked = new Map();   // 联系人 id → 联系人；建收集对象时带上 contact_id（以前只存了名称，合并联系人等功能找不到它）
   el.onclick = async e => {
     const b = e.target.closest('button'); if (!b) return;
-    if (b.dataset.c) { if (picked.has(b.dataset.c)) picked.delete(b.dataset.c); else picked.set(b.dataset.c, b.dataset.k); b.classList.toggle('accent'); b.classList.toggle('ghost'); return; }
+    if (b.dataset.c) { const c = orgs.find(x => String(x.id) === b.dataset.c); if (picked.has(b.dataset.c)) picked.delete(b.dataset.c); else if (c) picked.set(b.dataset.c, c); b.classList.toggle('accent', picked.has(b.dataset.c)); b.classList.toggle('ghost', !picked.has(b.dataset.c)); return; }
     if (b.dataset.x === 'cancel') { closeSheet(); return; }
     if (b.dataset.x === 'save') {
       const title = el.querySelector('#n-title').value.trim();
       if (!title) { toast('请填写收什么'); return; }
       const more = el.querySelector('#n-more').value.split(/[、,，\n]+/).map(s => s.trim()).filter(Boolean);
-      const targets = [...[...picked].map(([name, kind]) => ({ name, kind })), ...more.filter(n => !picked.has(n)).map(name => ({ name, kind: 'department' }))];
+      const chosen = [...picked.values()], byName = n => contacts.find(c => c.name === n);   // 手输的名称和已有联系人同名，也记上它
+      const targets = [...chosen.map(c => ({ name: c.name, kind: c.kind, contact_id: c.id })),
+        ...[...new Set(more)].filter(n => !chosen.some(c => c.name === n)).map(name => { const c = byName(name); return c ? { name, kind: c.kind, contact_id: c.id } : { name, kind: 'department' }; })];
       const due = el.querySelector('#n-due').value;
       const c = await createCollection({ title, task_id: el.querySelector('#n-task').value || null, due_at: due ? new Date(due).toISOString() : null }, targets);
       closeSheet(); toast('已创建'); go('/collections?c=' + c.id);

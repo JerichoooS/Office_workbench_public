@@ -14,6 +14,7 @@ const path = require('path');
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC_DIR = path.join(__dirname, 'public');
+const STARTED_AT = new Date().toISOString();   // 本次启动时间：设置页据此区分「刚启动还没跑第一轮」和「调度停了」
 const { sendPush } = require('./server/webpush');
 const keys = require('./server/keys');
 const scheduler = require('./server/scheduler');
@@ -123,7 +124,9 @@ const PUSH_HOSTS = /(^|\.)(push\.apple\.com|fcm\.googleapis\.com|push\.services\
 function json(res, code, obj) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); }
 
 async function handlePush(req, res, pathname) {
-  if (pathname === '/api/push/status' && req.method === 'GET') return json(res, 200, { push: await keys.status() });
+  // push：on / locked / waiting / off（见 keys.js）；其余是调度心跳（scheduler.js heartbeat），设置页显示「提醒服务正常 · 1 分钟前」。
+  // 只有状态和时间：不含口令、错误内容、用户数据
+  if (pathname === '/api/push/status' && req.method === 'GET') return json(res, 200, { push: await keys.status(), ...scheduler.heartbeat(), startedAt: STARTED_AT });
   if (pathname === '/api/push/unlock' && req.method === 'POST') {
     if (rateLimited('unlock:' + (req.socket.remoteAddress || ''))) return json(res, 429, { error: { message: 'too many requests' } });
     let t;
@@ -164,10 +167,14 @@ const VERSION = computeVersion(PUBLIC_DIR);
 
 // ---------- 静态托管 ----------
 function serveStatic(req, res, pathname) {
-  let rel = decodeURIComponent(pathname);
+  // 坏的百分号编码（如 /%E0%A4%A）会让 decodeURIComponent 抛错、含 \0 的路径会让 fs.stat 同步抛错——都会让整个进程退出（网站和推送一起停），所以先挡成 400
+  let rel;
+  try { rel = decodeURIComponent(pathname); } catch (_) { res.writeHead(400); res.end(); return; }
+  if (rel.includes('\0')) { res.writeHead(400); res.end(); return; }
   if (rel === '/' || rel === '') rel = '/index.html';
   const filePath = path.normalize(path.join(PUBLIC_DIR, rel));
-  if (!filePath.startsWith(PUBLIC_DIR)) { res.writeHead(403); res.end(); return; }
+  // 带上分隔符比较：只比前缀的话 public 旁边叫 public2/ 之类的目录也会被放行
+  if (!filePath.startsWith(PUBLIC_DIR + path.sep)) { res.writeHead(403); res.end(); return; }
 
   fs.stat(filePath, (err, st) => {
     if (err || !st.isFile()) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); res.end('404'); return; }
@@ -181,7 +188,8 @@ function serveStatic(req, res, pathname) {
 }
 
 const server = http.createServer((req, res) => {
-  const u = new URL(req.url, 'http://localhost');
+  let u;
+  try { u = new URL(req.url, 'http://localhost'); } catch (_) { res.writeHead(400); res.end(); return; }   // 解析不了的地址：400，不能让进程崩
   if (req.method === 'POST' && u.pathname === '/api/deepseek/chat') {
     proxyDeepseek(req, res).catch(() => { if (!res.headersSent) { res.writeHead(500); res.end(); } });
     return;
@@ -196,7 +204,9 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log('workbench listening on ' + HOST + ':' + PORT);
+  console.log('workbench listening on ' + HOST + ':' + server.address().port);   // 取实际端口（PORT=0 时由系统分配，自检用）
   // 推送调度：服务器口令就绪且数据库已执行 002_push.sql 后才会真正发送（见 server/keys.js）
-  scheduler.start(keys.getContext, { subject: keys.SUBJECT, log: (...a) => console.log('[push]', ...a) });
+  // 本机调试（HOST 是回环地址）默认不跑：口令文件是线上的，本机调度会抢先认领线上提醒，手机就收不到了
+  if (keys.PUSH_ON) scheduler.start(keys.getContext, { subject: keys.SUBJECT, log: (...a) => console.log('[push]', ...a) });
+  else console.log('[push] 本机调试：推送调度已关闭，不会认领线上提醒（确需在本机测推送：WB_PUSH=1 node server.js）');
 });
